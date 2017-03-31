@@ -1,0 +1,136 @@
+#############################################
+#  Main.py (Main module Used for B-CLARANS) #
+#############################################
+
+#Included Libraries (In built libraries):
+	import numpy as np
+	import math
+	import sys
+	from PIL import Corresponding_Gene# this module is used for image generation
+
+#User Defined Libraries
+ 	from extract_original import gen #this is used ot get gene from NCBI dataset
+ 	from Gene_vsDataPoints import Corresponding_Gene #This is uesd to get gene 
+ 	form util import propose,importdata,create_cluster_image
+
+
+ #Global Variables Defined 
+ 	#No Global Variables are defined in this module
+
+ #Local variables Used(important):
+  	# K = no of cluster
+  	# cluster_diseased = making cluster for diseased 
+  	# cluster_normal = making cluster for noramal
+
+ ####################################################################################
+ # Function name : Main                                                             #
+ # Function : It is used to get the raw data from our dataset and and               #
+ #            pass this dataset to utility module of B-CLARANS and also it          #
+ #            is used for image generation                                          #
+ # Return value: No return value                                                    #
+ # Input taken: no_of_cluster,filename for dateset                                  #
+ # Output: Give the best cluster center and image representation of that            #
+ ####################################################################################
+
+def main():
+ 	#For Diseased 
+	k=int(raw_input("Enter the no of clusters:"))
+	e=int(raw_input("Enter the no of iterations:"))
+	data=importdata("./diseased.txt")
+	mincost=float('inf')
+	best_cls,best_cluster=proposed(data,k,e,1,1)
+	print best_cluster
+	cluster_diseased = {0:[],1:[],2:[]}	
+	j=0
+	for i in best_cls:
+	    if i==0:
+	        cluster_diseased[i].append(j)
+	    if i==1:
+	        cluster_diseased[i].append(j)
+	    if i==2:
+	        cluster_diseased[i].append(j)
+	    j=j+1
+	for j,i in enumerate(cluster_diseased):
+		cluster_diseased[i].append(best_cluster[i])
+		print i,":",len(cluster_diseased[i])
+
+
+	# NORMAL ...!!!
+	# e=int(raw_input("Enter the no of iterations:"))
+	e =1
+	data=importdata("./normal.txt")
+	mincost=float('inf')
+	best_cls,best_cluster=proposed(data,k,e,1,1)
+	print best_cluster
+	cluster_normal = {0:[],1:[],2:[]}	
+	j=0
+	for i in best_cls:
+	    if i==0:
+	        cluster_normal[i].append(j)
+	    if i==1:
+	        cluster_normal[i].append(j)
+	    if i==2:
+	        cluster_normal[i].append(j)
+	    j=j+1
+
+	for j,i in enumerate(cluster_normal):
+		cluster_normal[i].append(best_cluster[i])
+		print i,":",len(cluster_normal[i])  
+	cluster_diseased_vs_normal={}
+	for i in cluster_diseased.iterkeys():
+		highest_match=0
+		data_points_diseased=cluster_diseased[i]
+		for j in cluster_normal.iterkeys():
+			x=len(set(data_points_diseased) & set(cluster_normal[j]))
+			if x>highest_match:
+				highest_match=x
+				Corresponding_cluster=j
+		cluster_diseased_vs_normal[i]=cluster_normal[Corresponding_cluster]
+		del cluster_normal[Corresponding_cluster]
+
+
+	# show image corresponding to each cluster 
+	im_diseased=create_cluster_image(cluster_diseased)
+	im_normal=create_cluster_image(cluster_diseased_vs_normal)
+	draw = ImageDraw.Draw(im_diseased)
+	font = ImageFont.truetype("fonts/OpenSans-Bold.ttf",35)
+	draw.text((580,660),"For DISEASED",(0,0,255),font=font)
+	draw = ImageDraw.Draw(im_normal)
+	font = ImageFont.truetype("fonts/OpenSans-Bold.ttf",35)
+	draw.text((580,660),"For NORMAL",(0,0,255),font=font)
+	im_diseased.show()
+	im_normal.show() 
+	im_diseased.save("BCLARANS_DISEASED.png")
+	im_normal.save("BCLARANS_NORMAL.png") 
+
+	#check true positive
+	responsible=[]
+	for i in range(0,k):
+		x=set(cluster_diseased_vs_normal[i])-set(cluster_diseased[i])
+		responsible.extend(x)
+	print "No of Genes responsible for diseased:",len(responsible)
+	responsible_gene_name=[]
+	for i in responsible:
+		responsible_gene_name.append(Corresponding_Gene[i])
+	true_positive=list(set(responsible_gene_name) & set(gene))
+
+	name_of_gene = open('gene_names.txt','w+')
+	counter = 1
+	for name in true_positive:
+		if (counter % 6 ) == 0:
+			name_of_gene.write('\n')
+			n_string = name.ljust(15,' ')
+			name_of_gene.write(n_string)
+			counter = 2
+		else:
+			n_string = name.ljust(15,' ')
+			name_of_gene.write(n_string)
+			counter += 1
+
+	print len(true_positive)
+	x=(float(len(true_positive))/float(len(responsible_gene_name)))*100.0
+	print x,"%"
+	
+
+if __name__ == '__main__':
+	main()  

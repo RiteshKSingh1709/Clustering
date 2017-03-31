@@ -1,0 +1,394 @@
+#############################################
+#  Main.py (Main module Used for X-CLARANS) #
+#############################################
+
+#Included Libraries (In built libraries):
+	import sys
+	import PIL # this module is used for image generation
+
+#User Defined Libraries
+ 	from extract_original import gen #this is used ot get gene from NCBI dataset
+ 	from Gene_vsDataPoints import Corresponding_Gene #This is uesd to get gene from corresponding result
+
+
+ #Global Variables Defined 
+ 	#No Global Variables are defined in this module
+
+ #Local variables Used(important):
+  	# K = no of cluster
+  	# cluster_diseased = making cluster for diseased 
+  	# cluster_normal = making cluster for noramal
+
+
+ ####################################################################################
+ # Function name : Main                                                             #
+ # Function : It is used to get the raw data from our dataset and and               #
+ #            pass this dataset to utility module of X-CLARANS and also it          #
+ #            is used for image generation                                          #
+ # Return value: No return value                                                    #
+ # Input taken: no_of_cluster,filename for dateset                                  #
+ # Output: Give the best cluster center and image representation of that            #
+ ####################################################################################
+  	k=int(raw_input("Enter the no of Clusters:"))  #taking input for number of cluster
+	data = []
+
+	### opening the csv file and closed it at end for diseased ###
+	try:
+		fnObj = open('./diseased.txt', 'r')  
+		for line in fnObj:
+			line = line.strip().split()
+			point = []
+			for c in line:
+				point.append(float(c))
+			data.append(tuple(point))
+	finally:
+		fnObj.close()
+
+
+	### Assigning all the points to respective cluster center  ###
+	cls,best_node=xclarans(data, 3, 30, c,k)
+	cluster_diseased = {0:[],1:[],2:[]}	
+	j=0
+	for i in cls:
+	    if i==0:
+	        cluster_diseased[i].append(j)
+	    if i==1:
+	        cluster_diseased[i].append(j)
+	    if i==2:
+	        cluster_diseased[i].append(j)
+	    j=j+1
+
+
+	### opening the csv file for noraml patient and closing it at end ###
+	data = []
+	try:
+		fnObj = open('./normal.txt', 'r')
+		for line in fnObj:
+			line = line.strip().split()
+			point = []
+			for c in line:
+				point.append(float(c))
+			data.append(tuple(point))
+	finally:
+		fnObj.close()
+
+
+	### Assining all the points to respective cluster center ###
+	cls,best_node=xclarans(data, 3, 30, c,k)
+	cluster_normal = {0:[],1:[],2:[]}	
+	j=0
+	for i in cls:
+	    if i==0:
+	        cluster_normal[i].append(j)
+	    if i==1:
+	        cluster_normal[i].append(j)
+	    if i==2:
+	        cluster_normal[i].append(j)
+	    j=j+1
+
+	### Checking for maximum match in both diseased cluster and normal cluster and assinging  name to cluster accordingly ###
+	cluster_diseased_vs_normal={}
+	for i in cluster_diseased.iterkeys():
+		highest_match=0
+		data_points_diseased=cluster_diseased[i]
+		for j in cluster_normal.iterkeys():
+			x=len(set(data_points_diseased) & set(cluster_normal[j]))
+			if x>highest_match:
+				highest_match=x
+				Corresponding_cluster=j
+		cluster_diseased_vs_normal[i]=cluster_normal[Corresponding_cluster]
+		del cluster_normal[Corresponding_cluster]
+
+
+	### This is used to show image ###
+
+	im_diseased=create_cluster_image(cluster_diseased)
+	im_normal=create_cluster_image(cluster_diseased_vs_normal)
+	draw = ImageDraw.Draw(im_diseased)
+	font = ImageFont.truetype("fonts/OpenSans-Bold.ttf",35)
+	draw.text((580,660),"For DISEASED",(0,0,255),font=font)
+	draw = ImageDraw.Draw(im_normal)
+	font = ImageFont.truetype("fonts/OpenSans-Bold.ttf",35)
+	draw.text((580,660),"For NORMAL",(0,0,255),font=font)
+	im_diseased.show()
+	im_normal.show() 
+	im_diseased.save("XCLARANS_DISEASED.png")
+	im_normal.save("XCLARANS_NORMAL.png") 
+	#check true positive
+	responsible=[]
+	for i in range(0,k):
+		x=set(cluster_diseased_vs_normal[i])-set(cluster_diseased[i])
+		responsible.extend(x)
+	print "No of Genes responsible for diseased:",len(responsible)
+	responsible_gene_name=[]
+	for i in responsible:
+		responsible_gene_name.append(Corresponding_Gene[i])
+	true_positive=list(set(responsible_gene_name) & set(gene))
+	name_of_gene = open('gene_names.txt','w+')
+	counter = 1
+
+	print len(true_positive)
+	x=(float(len(true_positive))/float(len(responsible_gene_name)))*100.0
+	print x
+
+
+
+### main function called here ###
+if __name__ == '__main__':
+	main()
+
+
+############################################################
+# Util.py (Helper Module Used in Main module for X-CLARAS) #
+############################################################
+
+#Included Libraries (In built libraries):
+	from win32api import GetSystemMetrics
+	import math , random
+	import numbpy as np
+	import sys
+	import PIL import Image, ImageDraw , ImageFont # this module is used for image generation
+	from scipy.spatial.distance import pdist,squareform
+
+#User Defined Libraries
+ 	from Gene_vsDataPoints import Corresponding_Gene #This is uesd to get gene from corresponding result
+
+
+ #Global Variables Defined 
+ 	#No Global Variables are defined in this module
+
+
+ ####################################################################################
+ # Function name : longest_points_gen                                               #
+ # Function : This function is used for getting fartest k point in dataset          #
+ #             where k is no. of cluster                                            #
+ #                                                                                  #
+ # Return value: Returning a list of three point which seperated by longest distance#
+ # Input taken:  Distance matrix of dataset                                         #
+ # Local Variable Used: distance_matrix (matrix format of datapoints)               #
+ #                      'u' used to check for comparision and output best result    #
+ ####################################################################################
+def longest_points_gen(data):
+	from scipy.spatial.distance import pdist,squareform
+    x=np.array(data,dtype='float32')
+    d=squareform(pdist(x,'euclidean'))
+    distance_matrix=d.tolist()
+    del d
+    x=[]
+    c=random.randint(0,6671)
+    t=max(distance_matrix[c])
+    p=distance_matrix[c].index(t)
+    longest=0.0
+    for i in range(len(data)):
+        if i==c or i==p:
+            continue
+        else:
+            m=distance_matrix[i][p]
+            k=distance_matrix[i][c]
+            u=math.sqrt(m**2-((t**2+m**2-k**2)/(2*t))**2)
+            if u>longest:
+                longest=u
+                index=i    
+    x.extend((c,p,i))
+    return x   # return the value 
+
+
+####################################################################################
+ # Function name : xclarans                                                         #
+ # Function : This function is used as main logic for xclarans.In This function     #    
+ #             we used for implementing main logic of x-ClARANS                     #    
+ #                                                                                  #    
+ # Return value: Returning the best cluster center with and datapoint in that center#
+ # Input taken:  DataPoint as points , numlocal (for number of iterations)          #
+                 mincost(Intailly assign with max value) ,k (no of cluster)         #     
+ #                                                                                  #
+#####################################################################################
+def xclarans(points, numlocal, maxneighbor, mincost,k):
+ 	i=1
+    N = len(points)
+    d_mat = np.asmatrix(np.empty((k,N)))
+    local_best = []
+    bestnode = []
+    
+    while i<=numlocal:
+        #Step 2 - pick k random medoids from data points - medoids_nr from points
+        node = np.array(longest_points_gen(points),dtype=int)
+        fill_distances(d_mat, points, node)     
+        cls = assign_to_closest(points, node, d_mat) 
+        cost = total_dist(d_mat, cls)
+        copy_node = node.copy()
+        print copy_node
+        print 'new start \n'
+        #increase neighbor count
+        j = 1 
+        
+        while j<=maxneighbor:
+            #Step 4 - pick a random neighbor of current node - i.e change randomly one medoid
+            #calculate the cost differential of the initial node and the random neighbor
+            changing_node = copy_node.copy()
+            idx = pick_random_neighbor(copy_node, N)
+            update_distances(d_mat, points, copy_node, idx)            
+            cls = assign_to_closest(points, copy_node, d_mat)   
+            new_cost = total_dist(d_mat, cls)
+            
+            #check if new cost is smaller 
+            if new_cost < cost:
+                cost = new_cost
+                local_best = copy_node.copy()
+                print 'Best cost: ' + str(cost) + ' '
+                print local_best 
+                print '\n'
+                j = 1
+                continue
+            else:
+                #copy_node = changing_node
+                j=j+1
+                if j<=maxneighbor:
+                    continue
+                elif j>maxneighbor:
+                    if mincost>cost:
+                        mincost = cost
+                        print "change bestnode " 
+                        print bestnode
+                        print " into"
+                        bestnode = local_best
+                        print bestnode
+                        print '\n'
+                        
+            i = i+1
+            if i>numlocal:
+                fill_distances(d_mat, points, bestnode)     
+                cls = assign_to_closest(points, bestnode, d_mat)
+                print "Final cost: " + str(mincost) + ' '
+                print bestnode 
+                print '\n'
+                return cls, bestnode
+            else:
+                break
+
+
+
+ ####################################################################################
+ # Function name : pick_random_neighbour                                            #
+ # Function : This function is used to pick random neighbor                         #
+ #                                                                                  #
+ # Return value: Return a random point as neighbour                                 #
+ # Input taken:  Take the current cluster node and set size is equivalent to no. of cluster #
+ # Local Variable Used: distance_matrix (matrix format of datapoints)               #
+ #                      'u' used to check for comparision and output best result    #
+ ####################################################################################
+
+ def pick_random_neighbor(current_node, set_size):
+    #pick a random item from the set and check that it is not selected
+    node = random.randrange(0, set_size, 1)
+    while node in current_node:
+        node = random.randrange(0, set_size, 1)
+
+
+
+####################################################################################
+ # Function name : dist_euc                                                         #
+ # Function : This function gives the distance between two point using Euclidean    #
+ #            distance                                                              #
+ #                                                                                  #
+ # Return value: Return distance between two points                                 #
+ # Input taken:  Two points vector1 and vector2                                     #
+ # Local Variable Used: 'dist' is used to store between two points and return it    #
+ ####################################################################################
+
+def dist_euc(vector1, vector2):
+    dist = 0
+    for i in range(len(vector1)):
+        dist += (vector1[i] - vector2[i])**2
+    return math.sqrt(dist)
+
+####################################################################################
+ # Function name : assing_to_closest                                                #
+ # Function : In this function we are assigning the points to closest center by co- #
+ #            -mparing each cluster center                                          #
+ #                                                                                  #
+ # Return value: datapoint matrix which contain info about all datapoints to which  #
+ #				 cluster center its belong ot                                       #
+ # Input taken:  All data poins ,list of cluster center , distance matrix           #
+ # Local Variable Used: temp varible is used to stroe and compare with prev value   #
+ ####################################################################################
+
+def assign_to_closest(points, meds, d_mat):
+    cluster =[]
+    for i in xrange(len(points)):
+        if i in meds:
+            cluster.append(np.where(meds==i))
+            continue
+        d = sys.maxint
+        idx=i
+        for j in xrange(len(meds)):
+            d_tmp = d_mat[j,i]
+            if d_tmp < d:
+                d = d_tmp
+                idx=j
+        cluster.append(idx)
+    return cluster
+
+####################################################################################
+ # Function name : fill_distance                                                    #
+ # Function : In this function we fill the distance matrix using after getting euc- #
+ #            -lidean distance formula                                              #
+ #                                                                                  #
+ # Output: Updated Distance Matrix                                                  #
+ # Input taken:  distance matrix, All datapoints and list of cluster center         #
+ # Local Variable Used: No Local Varibale Used in this fucntion                     #
+ ####################################################################################
+
+def fill_distances(d_mat, points, current_node):
+    for i in range(len(points)):
+        for k in range(len(current_node)):
+            d_mat[k,i]=dist_euc(points[current_node[k]], points[i])
+
+
+
+####################################################################################
+ # Function name : total_distance                                                   #
+ # Function : In this function we calculate all the distacne in a cluster . We do it#
+ #            for all cluster                                                       #
+ #                                                                                  #
+ # Return value: A single float value for summation of distances                    #
+ # Input taken:  distance matrix, and info about poitns belong to particular cluster#
+ # Local Variable:Loop variable is used 'i' , and tot_dist to calculate all distance#
+ #                and return this value                                             #
+ ####################################################################################
+
+def total_dist(d_mat, cls):
+    tot_dist = 0
+    for i in xrange(len(cls)):
+        tot_dist += d_mat[cls[i],i]
+    return tot_dist
+
+
+####################################################################################
+ # Function name : update_distances                                                 #
+ # Function : We Update the distance matrix here                                    #
+ # Return value: No Return Value                                                    #
+ # Input taken:  distance matrix, and info about poitns belong to particular cluster#
+ # Local Variable: distance matrix ,all datapoints , and id's of cluster            #
+ # Ouptut : Result into Updated distance matrix                                     #
+ ####################################################################################
+
+ def update_distances(d_mat, points, node, idx):
+    for j in range(len(points)):
+        d_mat[idx,j]=dist_euc(points[node[idx]], points[j])
+
+ 	
+ 	
+ 	
+
+
+
+
+ 
+
+
+
+
+
+
+
